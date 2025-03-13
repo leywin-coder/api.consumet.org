@@ -11,7 +11,7 @@ const routes = async (fastify: FastifyInstance, options: RegisterOptions) => {
 
   fastify.get('/', (_, rp) => {
     rp.status(200).send({
-      intro: Welcome to the animekai provider: check out the provider's website @ ${baseUrl},
+      intro: `Welcome to the animekai provider: check out the provider's website @ ${baseUrl}`,
       routes: [
         '/:query',
         '/latest-completed',

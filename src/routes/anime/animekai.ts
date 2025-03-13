@@ -3,11 +3,15 @@ import { ANIME } from '@consumet/extensions';
 import { StreamingServers, SubOrSub } from '@consumet/extensions/dist/models';
 
 const routes = async (fastify: FastifyInstance, options: RegisterOptions) => {
-  const animekai = new ANIME.AnimeKai(process.env.ANIMEKAI_URL || 'https://animekai.to');
+  const animekai = new ANIME.AnimeKai(process.env.ANIMEKAI_URL);
+  let baseUrl = 'https://animekai.to';
+  if (process.env.ANIMEKAI_URL) {
+    baseUrl = https://${process.env.ANIMEKAI_URL};
+  }
 
-  fastify.get('/', (_, reply) => {
-    return reply.status(200).send({
-      intro: `Welcome to the animekai provider: check out the provider's website @ ${animekai.baseUrl}`,
+  fastify.get('/', (_, rp) => {
+    rp.status(200).send({
+      intro: Welcome to the animekai provider: check out the provider's website @ ${baseUrl},
       routes: [
         '/:query',
         '/latest-completed',
@@ -31,147 +35,258 @@ const routes = async (fastify: FastifyInstance, options: RegisterOptions) => {
   });
 
   fastify.get('/:query', async (request: FastifyRequest, reply: FastifyReply) => {
-    try {
-      const { query } = request.params as { query: string };
-      const { page } = request.query as { page?: number };
-      const res = await animekai.search(query, page);
-      return reply.status(200).send(res);
-    } catch (error) {
-      return reply.status(500).send({ message: 'Something went wrong.', error });
-    }
+    const query = (request.params as { query: string }).query;
+
+    const page = (request.query as { page: number }).page;
+
+    const res = await animekai.search(query, page);
+
+    reply.status(200).send(res);
   });
 
-  fastify.get('/latest-completed', async (request, reply) => {
-    try {
-      const { page } = request.query as { page?: number };
-      const res = await animekai.fetchLatestCompleted(page);
-      return reply.status(200).send(res);
-    } catch (error) {
-      return reply.status(500).send({ message: 'Something went wrong.', error });
-    }
-  });
-
-  fastify.get('/watch/:episodeId', async (request, reply) => {
-    try {
-      const { episodeId } = request.params as { episodeId: string };
-      const { server, dub } = request.query as { server?: StreamingServers; dub?: string };
-      const isDub = dub === 'true' || dub === '1';
-
-      if (server && !Object.values(StreamingServers).includes(server)) {
-        return reply.status(400).send({ message: 'Invalid server specified' });
+  fastify.get(
+    '/latest-completed',
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const page = (request.query as { page: number }).page;
+      try {
+        const res = await animekai.fetchLatestCompleted(page);
+        reply.status(200).send(res);
+      } catch (error) {
+        reply.status(500).send({
+          message: 'Something went wrong. Contact developer for help.',
+        });
       }
+    },
+  );
 
-      const res = await animekai.fetchEpisodeSources(
-        episodeId,
-        server,
-        isDub ? SubOrSub.DUB : SubOrSub.SUB
-      );
-
-      return reply.status(200).send(res);
+  fastify.get('/new-releases', async (request: FastifyRequest, reply: FastifyReply) => {
+    const page = (request.query as { page: number }).page;
+    try {
+      const res = await animekai.fetchNewReleases(page);
+      reply.status(200).send(res);
     } catch (error) {
-      return reply.status(500).send({ message: 'Something went wrong.', error });
+      reply.status(500).send({
+        message: 'Something went wrong. Contact developer for help.',
+      });
     }
   });
 
-  fastify.get('/info', async (request, reply) => {
+  fastify.get('/recent-added', async (request: FastifyRequest, reply: FastifyReply) => {
+    const page = (request.query as { page: number }).page;
     try {
-      const { id } = request.query as { id?: string };
-      if (!id) {
+      const res = await animekai.fetchRecentlyAdded(page);
+      reply.status(200).send(res);
+    } catch (error) {
+      reply.status(500).send({
+        message: 'Something went wrong. Contact developer for help.',
+      });
+    }
+  });
+
+  fastify.get('/schedule/:date', async (request: FastifyRequest, reply: FastifyReply) => {
+    const date = (request.params as { date: string }).date;
+    try {
+      const res = await animekai.fetchSchedule(date);
+      reply.status(200).send(res);
+    } catch (error) {
+      reply.status(500).send({
+        message: 'Something went wrong. Contact developer for help.',
+      });
+    }
+  });
+
+  fastify.get('/spotlight', async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const res = await animekai.fetchSpotlight();
+      reply.status(200).send(res);
+    } catch (error) {
+      reply.status(500).send({
+        message: 'Something went wrong. Contact developer for help.',
+      });
+    }
+  });
+
+  fastify.get(
+    '/search-suggestions/:query',
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const query = (request.params as { query: string }).query;
+
+      if (typeof query === 'undefined')
+        return reply.status(400).send({ message: 'query is required' });
+
+      try {
+        const res = await animekai.fetchSearchSuggestions(query);
+        reply.status(200).send(res);
+      } catch (error) {
+        reply.status(500).send({
+          message: 'Something went wrong. Contact developer for help.',
+        });
+      }
+    },
+  );
+
+  fastify.get('/info', async (request: FastifyRequest, reply: FastifyReply) => {
+    const id = (request.query as { id: string }).id;
+
+    if (typeof id === 'undefined')
+      return reply.status(400).send({ message: 'id is required' });
+
+    try {
+      const res = await animekai
+        .fetchAnimeInfo(id)
+        .catch((err) => reply.status(404).send({ message: err }));
+
+      return reply.status(200).send(res);
+    } catch (err) {
+      reply
+        .status(500)
+        .send({ message: 'Something went wrong. Contact developer for help.' });
+    }
+  });
+
+  fastify.get(
+    '/watch/:episodeId',
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const episodeId = (request.params as { episodeId: string }).episodeId;
+      const server = (request.query as { server: string }).server as StreamingServers;
+
+      let dub = (request.query as { dub?: string | boolean }).dub;
+      if (dub === 'true' || dub === '1') dub = true;
+      else dub = false;
+
+      if (server && !Object.values(StreamingServers).includes(server))
+        return reply.status(400).send({ message: 'server is invalid' });
+
+      if (typeof episodeId === 'undefined')
         return reply.status(400).send({ message: 'id is required' });
+      try {
+        const res = await animekai
+          .fetchEpisodeSources(
+            episodeId,
+            server,
+            dub === true ? SubOrSub.DUB : SubOrSub.SUB,
+          )
+          .catch((err) => reply.status(404).send({ message: err }));
+
+        reply.status(200).send(res);
+      } catch (err) {
+        reply
+          .status(500)
+          .send({ message: 'Something went wrong. Contact developer for help.' });
       }
+    },
+  );
 
-      const res = await animekai.fetchAnimeInfo(id);
-      return reply.status(200).send(res);
-    } catch (error) {
-      return reply.status(500).send({ message: 'Something went wrong.', error });
-    }
-  });
+  fastify.get(
+    '/servers/:episodeId',
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const episodeId = (request.params as { episodeId: string }).episodeId;
+      let dub = (request.query as { dub?: string | boolean }).dub;
+      if (dub === 'true' || dub === '1') dub = true;
+      else dub = false;
 
-  fastify.get('/servers/:episodeId', async (request, reply) => {
-    try {
-      const { episodeId } = request.params as { episodeId: string };
-      const { dub } = request.query as { dub?: string };
-      const isDub = dub === 'true' || dub === '1';
+      if (typeof episodeId === 'undefined')
+        return reply.status(400).send({ message: 'id is required' });
 
-      const res = await animekai.fetchEpisodeServers(
-        episodeId,
-        isDub ? SubOrSub.DUB : SubOrSub.SUB
-      );
+      try {
+        const res = await animekai
+          .fetchEpisodeServers(episodeId, dub === true ? SubOrSub.DUB : SubOrSub.SUB)
+          .catch((err) => reply.status(404).send({ message: err }));
 
-      return reply.status(200).send(res);
-    } catch (error) {
-      return reply.status(500).send({ message: 'Something went wrong.', error });
-    }
-  });
+        reply.status(200).send(res);
+      } catch (err) {
+        reply
+          .status(500)
+          .send({ message: 'Something went wrong. Contact developer for help.' });
+      }
+    },
+  );
 
   fastify.get('/genre/list', async (_, reply) => {
     try {
       const res = await animekai.fetchGenres();
-      return reply.status(200).send(res);
+      reply.status(200).send(res);
     } catch (error) {
-      return reply.status(500).send({ message: 'Something went wrong.', error });
+      reply.status(500).send({
+        message: 'Something went wrong. Contact developer for help.',
+      });
     }
   });
 
-  fastify.get('/genre/:genre', async (request, reply) => {
-    try {
-      const { genre } = request.params as { genre: string };
-      const { page } = request.query as { page?: number };
+  fastify.get('/genre/:genre', async (request: FastifyRequest, reply: FastifyReply) => {
+    const genre = (request.params as { genre: string }).genre;
+    const page = (request.query as { page: number }).page;
 
+    if (typeof genre === 'undefined')
+      return reply.status(400).send({ message: 'genre is required' });
+
+    try {
       const res = await animekai.genreSearch(genre, page);
-      return reply.status(200).send(res);
+      reply.status(200).send(res);
     } catch (error) {
-      return reply.status(500).send({ message: 'Something went wrong.', error });
+      reply.status(500).send({
+        message: 'Something went wrong. Contact developer for help.',
+      });
     }
   });
 
-  fastify.get('/movies', async (request, reply) => {
+  fastify.get('/movies', async (request: FastifyRequest, reply: FastifyReply) => {
+    const page = (request.query as { page: number }).page;
     try {
-      const { page } = request.query as { page?: number };
       const res = await animekai.fetchMovie(page);
-      return reply.status(200).send(res);
-    } catch (error) {
-      return reply.status(500).send({ message: 'Something went wrong.', error });
+      reply.status(200).send(res);
+    } catch (err) {
+      reply
+        .status(500)
+        .send({ message: 'Something went wrong. Contact developer for help.' });
     }
   });
 
-  fastify.get('/ona', async (request, reply) => {
+  fastify.get('/ona', async (request: FastifyRequest, reply: FastifyReply) => {
+    const page = (request.query as { page: number }).page;
     try {
-      const { page } = request.query as { page?: number };
       const res = await animekai.fetchONA(page);
-      return reply.status(200).send(res);
-    } catch (error) {
-      return reply.status(500).send({ message: 'Something went wrong.', error });
+      reply.status(200).send(res);
+    } catch (err) {
+      reply
+        .status(500)
+        .send({ message: 'Something went wrong. Contact developer for help.' });
     }
   });
 
-  fastify.get('/ova', async (request, reply) => {
+  fastify.get('/ova', async (request: FastifyRequest, reply: FastifyReply) => {
+    const page = (request.query as { page: number }).page;
     try {
-      const { page } = request.query as { page?: number };
       const res = await animekai.fetchOVA(page);
-      return reply.status(200).send(res);
-    } catch (error) {
-      return reply.status(500).send({ message: 'Something went wrong.', error });
+      reply.status(200).send(res);
+    } catch (err) {
+      reply
+        .status(500)
+        .send({ message: 'Something went wrong. Contact developer for help.' });
     }
   });
 
-  fastify.get('/specials', async (request, reply) => {
+  fastify.get('/specials', async (request: FastifyRequest, reply: FastifyReply) => {
+    const page = (request.query as { page: number }).page;
     try {
-      const { page } = request.query as { page?: number };
       const res = await animekai.fetchSpecial(page);
-      return reply.status(200).send(res);
-    } catch (error) {
-      return reply.status(500).send({ message: 'Something went wrong.', error });
+      reply.status(200).send(res);
+    } catch (err) {
+      reply
+        .status(500)
+        .send({ message: 'Something went wrong. Contact developer for help.' });
     }
   });
 
-  fastify.get('/tv', async (request, reply) => {
+  fastify.get('/tv', async (request: FastifyRequest, reply: FastifyReply) => {
+    const page = (request.query as { page: number }).page;
     try {
-      const { page } = request.query as { page?: number };
       const res = await animekai.fetchTV(page);
-      return reply.status(200).send(res);
-    } catch (error) {
-      return reply.status(500).send({ message: 'Something went wrong.', error });
+      reply.status(200).send(res);
+    } catch (err) {
+      reply
+        .status(500)
+        .send({ message: 'Something went wrong. Contact developer for help.' });
     }
   });
 };

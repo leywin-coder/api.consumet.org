@@ -145,37 +145,32 @@ const routes = async (fastify: FastifyInstance, options: RegisterOptions) => {
   });
 
   fastify.get(
-    '/watch/:episodeId',
-    async (request: FastifyRequest, reply: FastifyReply) => {
-      const episodeId = (request.params as { episodeId: string }).episodeId;
-      const server = (request.query as { server: string }).server as StreamingServers;
+  '/watch/:episodeId',
+  async (request: FastifyRequest, reply: FastifyReply) => {
+    const episodeId = (request.params as { episodeId: string }).episodeId;
+    const server = (request.query as { server: string }).server as StreamingServers;
 
-      let dub = (request.query as { dub?: string | boolean }).dub;
-      if (dub === 'true' || dub === '1') dub = true;
-      else dub = false;
+    let dub = (request.query as { dub?: string | boolean }).dub;
+    if (dub === 'true' || dub === '1') dub = true;
+    else dub = false;
 
-      if (server && !Object.values(StreamingServers).includes(server))
-        return reply.status(400).send({ message: 'server is invalid' });
+    if (server && !Object.values(StreamingServers).includes(server))
+      return reply.status(400).send({ message: 'server is invalid' });
 
-      if (typeof episodeId === 'undefined')
-        return reply.status(400).send({ message: 'id is required' });
-      try {
-        const res = await animekai
-          .fetchEpisodeSources(
-            episodeId,
-            server,
-            dub === true ? SubOrSub.DUB : SubOrSub.SUB,
-          )
-          .catch((err) => reply.status(404).send({ message: err }));
-
-        reply.status(200).send(res);
-      } catch (err) {
-        reply
-          .status(500)
-          .send({ message: 'Something went wrong. Contact developer for help.' });
-      }
-    },
-  );
+    if (typeof episodeId === 'undefined')
+      return reply.status(400).send({ message: 'id is required' });
+    try {
+      const res = await animekai.fetchEpisodeSources(
+        episodeId,
+        server,
+        dub === true ? SubOrSub.DUB : SubOrSub.SUB
+      );
+      reply.status(200).send(res);
+    } catch (err) {
+      reply.status(404).send({ message: err });
+    }
+  }
+);
 
   fastify.get(
     '/servers/:episodeId',
